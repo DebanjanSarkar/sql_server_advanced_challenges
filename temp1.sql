@@ -1,0 +1,20 @@
+SELECT CASE WHEN 'Saturday' =DATENAME(weekday, '2023-09-23') THEN 1 ELSE 0 END;
+
+DECLARE @DATE1 DATETIME, @DATE2 DATETIME;
+SET @DATE1='2023-09-16';
+SET @DATE2='2023-09-23';
+DECLARE @paydate DATE, @hiredate DATE;
+
+SET @hiredate = '2020-01-21';
+SELECT DATEPART(DAY, @hiredate);
+
+SET @paydate = CAST(DATEPART(YEAR,@hiredate) AS NVARCHAR) + '-' + CAST( (DATEPART(MONTH,@hiredate)+1) AS NVARCHAR) + '-01';
+
+SELECT DATEADD(day,5,@paydate);
+
+
+SELECT FLOOR(11.0/2), CEILING(11.0/2), ROUND(11.0/2,1), 11/2;
+
+
+DECLARE @str NVARCHAR(20) = 'Fantabulous';
+SELECT LEFT(@str,5), RIGHT(@str,5), CHARINDEX('t', @str, 3), SUBSTRING(@str, 3, 5);
