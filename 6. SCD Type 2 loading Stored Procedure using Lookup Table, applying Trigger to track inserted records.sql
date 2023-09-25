@@ -18,27 +18,27 @@ INPUT::: |
 INSERT below records into source tables:
 -----------------------------------------
 
-Table Name eid ename esal edept 
-emp_data E206 Rebecca 48000 10 
-emp_data E207 Mark 62000 10 
+Table_Name	eid		ename		esal	edept 
+emp_data	E206	Rebecca		48000	10 
+emp_data	E207	Mark		62000	10 
 
 
-Table Name Cust_ID cust_name loc membership 
-Customer_src 30016 Danish Delhi Yes 
-Customer_src 30017 Akhil Mumbai No 
+Table_Name		Cust_ID		cust_name	loc		membership 
+Customer_src	30016		Danish		Delhi	Yes 
+Customer_src	30017		Akhil		Mumbai	No 
 
 
 Update below records in source tables:
 ---------------------------------------
 
-Table Name eid ename esal edept 
-emp_data E202 Preeta 52000 20 
-emp_data E205 Danny 71000 30
+Table_Name		eid		ename	esal	edept 
+emp_data		E202	Preeta	52000	20 
+emp_data		E205	Danny	71000	30
 
 
-Table Name Cust_ID cust_name loc membership 
-Customer_src 30014 Celina Bangalore Yes 
-Customer_src 30012 Thomas Chennai Yes 
+Table_Name		Cust_ID		cust_name	loc			membership 
+Customer_src	30014		Celina		Bangalore	Yes 
+Customer_src	30012		Thomas		Chennai		Yes 
 
 Above records should be automatically inserted/updated in the target tables in SCD type 2 method after running the stored procedure. 
 
@@ -50,16 +50,16 @@ Sample Target records in Target tables:
 
 Emp_target table: 
 -----------------
-eid ename esal edept Active 
-E201 David 40000 10 N 
-E201 David 40000 30 Y 
+eid		ename	esal	edept	Active 
+E201	David	40000	10		N 
+E201	David	40000	30		Y 
 
 
 Customer_trg table: 
 -------------------
-Cust_ID cust_name loc membership Active 
-30014 Celina Mumbai Yes N 
-30014 Celina Bangalore Yes Y 
+Cust_ID		cust_name	loc			membership	Active 
+30014		Celina		Mumbai		Yes			N 
+30014		Celina		Bangalore	Yes			Y 
 
 
 Please keep object names and column names exactly same as mentioned in the question. 
@@ -235,5 +235,88 @@ END
 CREATE PROCEDURE sp_prob2_scd_2
 AS
 BEGIN
+	DECLARE @source_schema NVARCHAR(20), @source_table NVARCHAR(20), @target_schema NVARCHAR(20), @target_table NVARCHAR(20);
+
+	DECLARE scd2_cursor CURSOR FOR
+	SELECT src_schema, src_table, trg_schema, trg_table FROM scd2.TBLLOOKUP;
+
+	OPEN scd2_cursor;
+
+	FETCH NEXT FROM scd2_cursor INTO @source_schema, @source_table, @target_schema, @target_table;
+
+	DECLARE @sql_query1 NVARCHAR(1000), @sql_query2 NVARCHAR(1000);
+	SET @sql_query1 = '';
+	SET @sql_query2 = '';
+
+	WHILE (@@FETCH_STATUS=0)
+	BEGIN
+		-- SCD loading of data into emp_target table:
+		IF @source_table = 'emp_data'
+		BEGIN
+			--SELECT * FROM scd2.emp_data;
+			SET @sql_query1 = 'MERGE INTO ' + @target_schema + '.' + @target_table + ' t
+			USING ' + @source_schema + '.' + @source_table + ' s
+			ON t.eid = s.eid
+			WHEN MATCHED AND active = ''Y'' THEN
+				UPDATE SET active = ''N'' ; '
+
+			SET @sql_query2 = ' INSERT INTO ' + @target_schema + '.' + @target_table + ' (eid, ename, esal, edept, active)
+			SELECT eid, ename, esal, edept, ''Y'' FROM ' + @source_schema + '.' + @source_table + '; '
+
+		END
+
+
+		-- SCD loading of data into customer_trg table:
+		IF @source_table = 'customer_src'
+		BEGIN
+			-- SELECT * FROM scd2.customer_src;
+
+			SET @sql_query1 = 'MERGE INTO ' + @target_schema + '.' + @target_table + ' t
+			USING ' + @source_schema + '.' + @source_table + ' s
+			ON t.cust_id = s.cust_id
+			WHEN MATCHED AND active = ''Y'' THEN
+				UPDATE SET active = ''N''; '
+
+			SET @sql_query2 = 'INSERT INTO ' + @target_schema + '.' + @target_table + ' (cust_id, cust_name, loc, membership, active)
+			SELECT cust_id, cust_name, loc, membership, ''Y'' FROM ' + @source_schema + '.' + @source_table + '; '
+
+		END
+
+		-- Printing the Dynamic SQL queries for debugging purpose:
+		PRINT @sql_query1;
+		PRINT @sql_query2;
+		
+
+		--Executing the Dynamic SQL queries set above:
+		EXEC sp_executesql @sql_query1;
+		EXEC sp_executesql @sql_query2;
+
+		FETCH NEXT FROM scd2_cursor INTO @source_schema, @source_table, @target_schema, @target_table;
+	END
+
+
+	-- Closing the Cursor, and freeing up the resources consumed by it.
+	CLOSE scd2_cursor;
+	DEALLOCATE scd2_cursor;
 
 END
+
+
+------------------------------------------------------------------------------------------------------------
+-- Testing the created Stored Procedure / Execution of the Stored Procedure:
+EXEC sp_prob2_scd_2;
+
+-- CLEAR THE TARGET TABLES for fresh running of stored procedure.
+TRUNCATE TABLE scd2.emp_target;
+TRUNCATE TABLE scd2.customer_trg;
+
+SELECT * FROM scd2.TBLLOOKUP;
+SELECT * FROM scd2.emp_data;
+SELECT * FROM scd2.emp_target;
+SELECT * FROM scd2.customer_src;
+SELECT * FROM scd2.customer_trg;
+
+/*
+	To use single quote inside string in SQL that is to escape sequence the single quote, simply double the single quote.
+	That is, put single quote twice without space, to get that printed.
+*/
